@@ -1,1 +1,32 @@
+version: '3.9'
 
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.1
+    container_name: keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import
+    networks:
+      - secure-net
+
+  flask-app:
+    build: ./flask-app
+    container_name: flask-app
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./flask-app/.env
+    depends_on:
+      - keycloak
+    networks:
+      - secure-net
+
+networks:
+  secure-net:
+    driver: bridge
