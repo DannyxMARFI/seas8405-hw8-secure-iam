@@ -1,6 +1,7 @@
 import jwt
 import requests
 import os
+from jwt.algorithms import RSAAlgorithm
 
 OIDC_ISSUER = os.getenv("OIDC_ISSUER")
 CLIENT_ID = os.getenv("CLIENT_ID")
@@ -21,25 +22,28 @@ def get_jwks():
 def verify_token(token):
     jwks = get_jwks()
     unverified_header = jwt.get_unverified_header(token)
-    rsa_key = {}
+    rsa_key = None
 
     for key in jwks["keys"]:
-        if key["kid"] == unverified_header["kid"]:
-            rsa_key = {
-                "kty": key["kty"],
-                "kid": key["kid"],
-                "use": key["use"],
-                "n": key["n"],
-                "e": key["e"]
-            }
+        if key["kid"] == unverified_header.get("kid"):
+            rsa_key = RSAAlgorithm.from_jwk(
+                {
+                    "kty": key["kty"],
+                    "kid": key["kid"],
+                    "use": key["use"],
+                    "n": key["n"],
+                    "e": key["e"],
+                }
+            )
+            break
 
-    if not rsa_key:
+    if rsa_key is None:
         raise Exception("Public key not found in JWKS")
 
     try:
         payload = jwt.decode(
             token,
-            key=jwt.algorithms.RSAAlgorithm.from_jwk(rsa_key),
+            key=rsa_key,
             algorithms=["RS256"],
             audience=CLIENT_ID,
             issuer=OIDC_ISSUER
@@ -47,5 +51,5 @@ def verify_token(token):
         return payload
     except jwt.ExpiredSignatureError:
         raise Exception("Token expired")
-    except jwt.InvalidTokenError:
-        raise Exception("Invalid token")
+    except jwt.InvalidTokenError as e:
+        raise Exception(f"Invalid token: {e}")
